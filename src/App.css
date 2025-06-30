@@ -1,0 +1,112 @@
+.App {
+  text-align: center;
+  padding: 2rem;
+  min-height: 100vh;
+  background-color: #0f0f0f;
+}
+
+h1 {
+  color: #e5e7eb;
+  margin-bottom: 1rem;
+}
+
+p {
+  color: #9ca3af;
+  font-size: 1.1rem;
+  margin-bottom: 2rem;
+}
+
+.form-container {
+  max-width: 500px;
+  margin: 0 auto 3rem auto;
+  background: #1a1a1a;
+  padding: 2rem;
+  border: 1px solid #2d2d2d;
+  text-align: left;
+}
+
+.address-info {
+  margin-top: 1rem;
+  padding: 1rem;
+  background-color: #f0f9ff;
+  border: 1px solid #0ea5e9;
+  border-radius: 8px;
+  text-align: center;
+}
+
+.address-info p {
+  color: #0c4a6e;
+  margin: 0;
+  font-weight: 500;
+}
+
+.address-changing {
+  color: #f59e0b !important;
+  font-weight: 600 !important;
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.7;
+  }
+}
+
+/* Chart and OrderManager spacing */
+.chart-container {
+  margin: 2rem auto;
+  max-width: 1200px;
+  padding: 0 1rem;
+}
+
+.order-manager {
+  margin: 2rem auto;
+  max-width: 1200px;
+  padding: 0 1rem;
+}
+
+/* Responsive padding adjustments */
+@media (max-width: 768px) {
+  .App {
+    padding: 1rem;
+  }
+  
+  .form-container {
+    margin-bottom: 2rem;
+    padding: 1.5rem;
+  }
+  
+  .chart-container,
+  .order-manager {
+    margin: 1.5rem auto;
+    padding: 0 0.5rem;
+  }
+}
+
+/* Dark mode support */
+@media (prefers-color-scheme: dark) {
+  .App {
+    background-color: #1f2937;
+  }
+  
+  .form-container {
+    background-color: #374151;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+  }
+  
+  .address-info {
+    background-color: #1e3a8a;
+    border-color: #3b82f6;
+  }
+  
+  .address-info p {
+    color: #dbeafe;
+  }
+  
+  .address-changing {
+    color: #fbbf24 !important;
+  }
+}
