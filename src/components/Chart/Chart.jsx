@@ -16,6 +16,7 @@ const Chart = ({ selectedToken, timeWindow, orders = [], trades = [], width = '1
   const [dataLoaded, setDataLoaded] = useState(false);
   const [loading, setLoading] = useState(false);
   const [loadingProgress, setLoadingProgress] = useState(null);
+  const [chartHeight, setChartHeight] = useState(600);
 
   // Cluster orders to reduce visual clutter and improve performance
   const clusterOrders = (orders) => {
@@ -487,6 +488,38 @@ const Chart = ({ selectedToken, timeWindow, orders = [], trades = [], width = '1
     processBatch(0);
   }, [processedOrders, orders.length, createPersistentTwapMarkers]);
 
+  // Handle manual chart resizing
+  useEffect(() => {
+    const handleMouseDown = (e) => {
+      if (e.target.classList.contains('chart-resize-handle')) {
+        e.preventDefault();
+        
+        const startY = e.clientY;
+        const startHeight = chartHeight;
+        
+                 const handleMouseMove = (e) => {
+           const deltaY = e.clientY - startY;
+           const newHeight = Math.max(600, Math.min(1200, startHeight + deltaY));
+           setChartHeight(newHeight);
+         };
+        
+        const handleMouseUp = () => {
+          document.removeEventListener('mousemove', handleMouseMove);
+          document.removeEventListener('mouseup', handleMouseUp);
+        };
+        
+        document.addEventListener('mousemove', handleMouseMove);
+        document.addEventListener('mouseup', handleMouseUp);
+      }
+    };
+    
+    document.addEventListener('mousedown', handleMouseDown);
+    
+    return () => {
+      document.removeEventListener('mousedown', handleMouseDown);
+    };
+  }, [chartHeight]);
+
   // Fetch pricing data from HyperLiquid
   const fetchPricingData = async (token, window, timeframe) => {
     console.log('🔍 fetchPricingData called with:', { token, window, timeframe });
@@ -661,10 +694,37 @@ const Chart = ({ selectedToken, timeWindow, orders = [], trades = [], width = '1
   useEffect(() => {
     if (chartContainerRef.current) {
       try {
-        // Create the chart
-        const chart = createChart(chartContainerRef.current, {
-          width: typeof width === 'number' ? width : chartContainerRef.current.clientWidth,
-          height: typeof height === 'number' ? height : 400,
+        // Get container dimensions
+        const container = chartContainerRef.current;
+        const containerWidth = container.clientWidth;
+        const containerHeight = chartHeight;
+        
+        console.log('📏 Chart container dimensions:', {
+          width: containerWidth,
+          height: containerHeight,
+          containerStyle: window.getComputedStyle(container)
+        });
+
+        // Calculate available height for chart (subtract header height)
+        const headerHeight = container.querySelector('.chart-header')?.offsetHeight || 0;
+        const chartAreaHeight = containerHeight - headerHeight;
+        
+        // Ensure minimum chart area height for time scale visibility
+        const minChartAreaHeight = 350; // Minimum height needed for time scale at 600px default
+        const finalChartHeight = Math.max(chartAreaHeight, minChartAreaHeight);
+        
+        console.log('📊 Chart area calculation:', {
+          totalHeight: containerHeight,
+          headerHeight: headerHeight,
+          chartAreaHeight: chartAreaHeight,
+          finalChartHeight: finalChartHeight,
+          hasEnoughSpace: finalChartHeight >= minChartAreaHeight
+        });
+        
+        // Create the chart with proper dimensions
+        const chart = createChart(container, {
+          width: containerWidth,
+          height: finalChartHeight,
           layout: {
             background: { type: ColorType.Solid, color: '#1a1a1a' },
             textColor: '#e5e7eb',
@@ -687,6 +747,23 @@ const Chart = ({ selectedToken, timeWindow, orders = [], trades = [], width = '1
             backgroundColor: '#1a1a1a',
             timeVisible: true,
             secondsVisible: false,
+            visible: true,
+            rightOffset: 12,
+            leftOffset: 12,
+            barSpacing: 3,
+            minBarSpacing: 1,
+            fixLeftEdge: false,
+            fixRightEdge: false,
+            lockVisibleTimeRangeOnResize: false,
+            rightBarStaysOnScroll: false,
+            borderVisible: true,
+            visibleLogicalRange: null,
+            ticksVisible: true,
+            // Ensure time scale is always visible with proper spacing
+            scaleMargins: {
+              top: 0.08,
+              bottom: 0.15, // Adjusted bottom margin for 600px default height
+            },
           },
         });
 
@@ -745,18 +822,60 @@ const Chart = ({ selectedToken, timeWindow, orders = [], trades = [], width = '1
           }, 150); // 150ms debounce
         });
 
-        // Handle window resize
+        // Handle window resize with proper debouncing
+        let resizeTimeout;
         const handleResize = () => {
-          chart.applyOptions({
-            width: chartContainerRef.current.clientWidth,
-          });
+          clearTimeout(resizeTimeout);
+          resizeTimeout = setTimeout(() => {
+            if (chartContainerRef.current && chart) {
+              const newWidth = chartContainerRef.current.clientWidth;
+              const headerHeight = chartContainerRef.current.querySelector('.chart-header')?.offsetHeight || 0;
+              const newChartHeight = chartHeight - headerHeight;
+              
+              // Ensure minimum chart area height for time scale visibility
+              const minChartAreaHeight = 350;
+              const finalChartHeight = Math.max(newChartHeight, minChartAreaHeight);
+              
+              console.log('🔄 Resizing chart to:', { 
+                width: newWidth, 
+                totalHeight: chartHeight,
+                headerHeight: headerHeight,
+                chartHeight: newChartHeight,
+                finalChartHeight: finalChartHeight,
+                hasEnoughSpace: finalChartHeight >= minChartAreaHeight
+              });
+              
+              chart.applyOptions({
+                width: newWidth,
+                height: finalChartHeight,
+              });
+              
+              // Force chart to recalculate layout
+              chart.resize(newWidth, finalChartHeight);
+            }
+          }, 100); // Debounce resize events
         };
 
         window.addEventListener('resize', handleResize);
+        
+        // Create ResizeObserver for container size changes
+        const resizeObserver = new ResizeObserver((entries) => {
+          for (const entry of entries) {
+            if (entry.target === chartContainerRef.current) {
+              handleResize();
+            }
+          }
+        });
+        
+        if (chartContainerRef.current) {
+          resizeObserver.observe(chartContainerRef.current);
+        }
 
         // Cleanup function
         return () => {
           window.removeEventListener('resize', handleResize);
+          clearTimeout(resizeTimeout);
+          resizeObserver.disconnect();
           // Cancel any pending requests
           if (abortControllerRef.current) {
             abortControllerRef.current.abort();
@@ -1129,7 +1248,7 @@ const Chart = ({ selectedToken, timeWindow, orders = [], trades = [], width = '1
   }, [trades, seriesReady, dataLoaded, selectedToken, addTradeMarkers]);
 
   return (
-    <div className="chart-container" style={{ width, height }}>
+    <div className="chart-container" style={{ width, height: `${chartHeight}px` }}>
       <div className="chart-header">
         <span className="token-name">{selectedToken}</span>
         <span className="timeframe-display">{selectedTimeframe}</span>
@@ -1156,6 +1275,23 @@ const Chart = ({ selectedToken, timeWindow, orders = [], trades = [], width = '1
               {tf}
             </button>
           ))}
+        </div>
+        <div className="chart-size-controls">
+          <button 
+            className="size-btn"
+            onClick={() => setChartHeight(Math.max(600, chartHeight - 50))}
+            title="Decrease chart height"
+          >
+            -
+          </button>
+          <span className="size-indicator">{chartHeight}px</span>
+          <button 
+            className="size-btn"
+            onClick={() => setChartHeight(Math.min(1200, chartHeight + 50))}
+            title="Increase chart height"
+          >
+            +
+          </button>
         </div>
         <div className="order-legend">
           <div className="legend-item">
@@ -1193,6 +1329,8 @@ const Chart = ({ selectedToken, timeWindow, orders = [], trades = [], width = '1
         </div>
       </div>
       <div ref={chartContainerRef} className="chart" />
+      {/* Resize handle for manual chart resizing */}
+      <div className="chart-resize-handle" />
       {/* Loading indicator directly under the chart */}
       {loading && (
         <div className="loading">
